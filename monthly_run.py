@@ -20,8 +20,11 @@ import sys
 import shutil
 import datetime
 import calendar
+from builtins import input
+from future import standard_library
 from dateutil.relativedelta import relativedelta
 import pytest
+standard_library.install_aliases()
 
 
 # Master debug switch for main driver
@@ -31,6 +34,9 @@ DEBUG = True
 # To do
 # Write complete test suit
 # Migrate from class to dictionary when tests are complete
+#
+# Re order the check inputs, so we check inputs after each TUI.
+# Check for an input file before anything.
 ########
 
 
@@ -140,24 +146,24 @@ def run_completion_script():
 # --------------------------------------------------------------
 # Nothing below here should need changing, but feel free to look.
 
-def main( debug=DEBUG ):
-    """ 
-    Run monthly_run 
+def main():
+    """
+    Run monthly_run
     """
     # Get the default inputs as a class
     inputs = GET_INPUTS()
 
     # Get the arguments from the command line or UI.
-    inputs = get_arguments( inputs, debug=DEBUG)
+    inputs = get_arguments(inputs)
 
     # Check all the inputs are valid.
-    inputs = check_inputs(inputs, debug=DEBUG)
+    inputs = check_inputs(inputs)
 
     # Check the start and end dates are compatible with the script.
     start_date, end_date = get_start_and_end_dates()
 
     # Calculate the list of months.
-    times = list_of_times_to_run( start_date, end_date, inputs )
+    times = list_of_times_to_run(start_date, end_date, inputs)
 
     # Make a backup of the input.geos file.
     backup_the_input_file()
@@ -166,7 +172,7 @@ def main( debug=DEBUG ):
     create_the_input_files(times)
 
     # Create the queue files.
-    create_the_queue_files(times, inputs, debug=DEBUG)
+    create_the_queue_files(times, inputs)
 
     # Create the run script.
     create_the_run_script(times)
@@ -176,7 +182,7 @@ def main( debug=DEBUG ):
 
     return
 
-def check_inputs(inputs, debug=False):
+def check_inputs(inputs):
     """
     Make sure all the inputs make sense
     Input: inputs(dictionary)
@@ -188,7 +194,7 @@ def check_inputs(inputs, debug=False):
     run_script_string = inputs.run_script_string
     out_of_hours_string = inputs.out_of_hours_string
     email_option = inputs.email_option
-    wall_time = inputs.wall_time
+    # wall_time = inputs.wall_time
     step = inputs.step
 
     queue_names = ['core16', 'core32', 'core64', 'batch', 'run']
@@ -197,8 +203,8 @@ def check_inputs(inputs, debug=False):
     steps = ["month", "week", "day"]
 
     assert (step in steps), str(
-        "Unrecognised step size.",
-        "try one of {steps}",
+        "Unrecognised step size."+
+        "try one of {steps}"
         ).format(steps=steps)
 
     assert (-1024 <= int(queue_priority) <= 1023), str(
@@ -210,21 +216,21 @@ def check_inputs(inputs, debug=False):
         ).format(queue_name=queue_name)
 
     assert ((out_of_hours_string in yess) or (out_of_hours_string in nooo)), str(
-        "Unrecognised option for out of hours.",
-        "Try one of: {yess} / {nooo}",
+        "Unrecognised option for out of hours."+
+        "Try one of: {yess} / {nooo}"+
         "The command given was {run_script_string}"
         ).format(yess=yess, nooo=nooo, run_script_string=run_script_string)
 
     assert (run_script_string in yess) or (run_script_string in nooo), str(
-        "Unrecognised option for run the script on completion.",
-        "Try one of: {yess} / {nooo}",
+        "Unrecognised option for run the script on completion."+
+        "Try one of: {yess} / {nooo}"+
         "The command given was: {run_script_string}."
         ).format(yess=yess, nooo=nooo,
                  run_script_string=run_script_string)
 
     assert (email_option in yess) or (email_option in nooo), str(
-        "Email option is neither yes or no.",
-        "Please check the settings.",
+        "Email option is neither yes or no."+
+        "Please check the settings."+
         "Try one of: {yess} / {nooo}"
         ).format(yess=yess, nooo=nooo)
 
@@ -269,75 +275,85 @@ def setup_script():
     """
 
     print("\n",
-    "Monthly run setup complete. Change your default settings in settings.json\n",
-    "To run the script from anywhere with the monthly_run command,",
-    "copy the following code into your terminal. \n")
+          "Monthly run setup complete. \n \n",
+          "Change your default settings in settings.json\n",
+          "To run the script from anywhere with the monthly_run command,",
+          "copy the following code into your terminal. \n")
 
     script_location = os.path.realpath(__file__)
     # make sure the script is excecutable
-    print( "chmod 755 {script}".format(script=script_location) )
+    print("chmod 755 {script}".format(script=script_location))
     # Make sure there is a ~/bin file
-    print( "mkdir -p $HOME/bin" )
+    print("mkdir -p $HOME/bin")
     # Create a symlink from the file to the bin
-    print( "ln -s {script} $HOME/bin/monthly_run".format(script=script_location) )
+    print("ln -s {script} $HOME/bin/monthly_run".format(script=script_location))
     # Make sure the ~/bin is in the bashrc
     #with open('$HOME/.bashrc','a') as bashrc:
     #        bashrc.write('## Written by monthly_run')
     #        bashrc.write('export PATH=$PATH:$HOME/bin')
-    print( 'echo "## Written by monthly_run" >> $HOME/.bashrc' )
-    print( 'echo "export PATH=\$PATH:\$HOME/bin" >> $HOME/.bashrc' )
+    print('echo "## Written by monthly_run" >> $HOME/.bashrc')
+    print('echo "export PATH=\$PATH:\$HOME/bin" >> $HOME/.bashrc')
     # source the bashrc
-    print( "source $HOME/.bashrc" )
-    print( "\n" )
+    print("source $HOME/.bashrc")
+    print("\n")
     sys.exit()
 
 
-def get_arguments(inputs, debug=DEBUG):
+def get_arguments(inputs):
     """
     Get the arguments supplied from command line
     """
+    ############################
+    # Re-write this with a dictionary
+    # {
+    # "--setup": call(setup_script),
+    # "--queue_name": get_job_name_from_arg()
+    # }
+    # Or something like that thought out a bit better...
+    #############################
     # If there are no arguments then run the GUI
-    if len(sys.argv)>1:
-      for arg in sys.argv:
-         if "monthly-run" in arg: continue
-         if arg.startswith("--setup"):
-            setup_script()
-         elif arg.startswith("--job-name="):
-            inputs.job_name = (arg[11:].strip())[:9]
-         elif arg.startswith("--step="):
-            inputs.step = arg[7:].strip()
-         elif arg.startswith("--queue-name="):
-            inputs.queue_name = arg[13:].strip()
-         elif arg.startswith("--queue-priority="):
-            inputs.queue_priority = arg[17:].strip()
-         elif arg.startswith("--submit="):
-            inputs.run_script_string = arg[9:].strip()
-         elif arg.startswith("--out-of-hours="):
-            inputs.out_of_hours_string = arg[15:].strip() 
-         elif arg.startswith("--wall-time="):
-            inputs.wall_time = arg[12:].strip()
-         elif arg.startswith("--memory-need="):
-            inputs.wall_time = arg[14:].strip() 
-         elif arg.startswith("--help"):
-            print("""
-            monthly-run.py
+    if len(sys.argv) > 1:
+        for arg in sys.argv:
+            if "monthly-run" in arg:
+                continue
+            if arg.startswith("--setup"):
+                setup_script()
+            elif arg.startswith("--job-name="):
+                inputs.job_name = (arg[11:].strip())[:9]
+            elif arg.startswith("--step="):
+                inputs.step = arg[7:].strip()
+            elif arg.startswith("--queue-name="):
+                inputs.queue_name = arg[13:].strip()
+            elif arg.startswith("--queue-priority="):
+                inputs.queue_priority = arg[17:].strip()
+            elif arg.startswith("--submit="):
+                inputs.run_script_string = arg[9:].strip()
+            elif arg.startswith("--out-of-hours="):
+                inputs.out_of_hours_string = arg[15:].strip()
+            elif arg.startswith("--wall-time="):
+                inputs.wall_time = arg[12:].strip()
+            elif arg.startswith("--memory-need="):
+                inputs.wall_time = arg[14:].strip()
+            elif arg.startswith("--help"):
+                print("""
+                monthly-run.py
 
-            For UI run without arguments
-            Arguments are:
-            --job-name=
-            --step=
-            --queue-name=
-            --queue-priority=
-            --submit=
-            --out-of-hours=
-            --wall-time=
-            --memory-need=
-            e.g. to set the queue name to 'bob' write --queue-name=bob
-            """)
-         else:
-             print ("""Invalid argument {arg}
-                     Try --help for more info."""
-                     ).format(arg=arg)
+                For UI run without arguments
+                Arguments are:
+                --job-name=
+                --step=
+                --queue-name=
+                --queue-priority=
+                --submit=
+                --out-of-hours=
+                --wall-time=
+                --memory-need=
+                e.g. to set the queue name to 'bob' write --queue-name=bob
+                """)
+            else:
+                print ("""Invalid argument {arg}
+                         Try --help for more info."""
+                      ).format(arg=arg)
     else:
         inputs = get_variables_from_cli(inputs)
     return inputs
@@ -363,7 +379,7 @@ def get_variables_from_cli(inputs):
     # Set variables from inputs
     job_name = inputs.job_name
     queue_priority = inputs.queue_priority
-    queue_name  = inputs.queue_name
+    queue_name = inputs.queue_name
     run_script_string = inputs.run_script_string
     out_of_hours_string = inputs.out_of_hours_string
     wall_time = inputs.wall_time
@@ -372,60 +388,81 @@ def get_variables_from_cli(inputs):
 
     # Name the queue
     clear_screen()
-    print( 'What name do you want in the queue?\n', \
-    '(Will truncate to 9 charicters).\n')
-    input = str(raw_input( 'DEFAULT = ' + job_name + ' :\n'))
-    if (len(input) != 0): job_name = input
+    print('What name do you want in the queue?\n', \
+          '(Will truncate to 9 charicters).\n')
+    print('DEFAULT = ' + job_name + ' :\n')
+    _input = input()
+    if len(_input) != 0:
+        job_name = _input
 
     # Specify the step size
     clear_screen()
-    print( 'What time step size do you want?\n', \
-        '(month recomended for 4x5, 2x25. week or day available).\n')
-    input = str(raw_input( 'DEFAULT = ' + step + ' :\n'))
-    if (len(input) != 0): step = input
+    print('What time step size do you want?\n', \
+          '(month recomended for 4x5, 2x25. week or day available).\n')
+    print ('DEFAULT = ' + step + ' :\n')
+    _input = input()
+    if len(_input) != 0:
+        step = _input
+
+
+
+############################## I need to fix the inputs and prints like on the line below!!!!!
+
 
     # Give the job a priority
     clear_screen()
     print("What queue priority do you want? (Between -1024 and 1023).\n")
-    input = str(raw_input( 'DEFAULT = ' + queue_priority + ' :\n'))
-    if (len(input) != 0): queue_priority = input
+    print(str('DEFAULT = ' + queue_priority + ' :\n'))
+    _input = input()
+    if len(_input) != 0:
+        queue_priority = _input
 
     # Choose the queue
     clear_screen()
-    print( "What queue do you want to go in?\n" )
-    input = str(raw_input( 'DEFAULT = ' + queue_name + ' :\n'))
-    if (len(input) != 0): queue_name = input
+    print("What queue do you want to go in?\n")
+    print('DEFAULT = ' + queue_name + ' :\n')
+    _input = input()
+    if len(_input) != 0:
+        queue_name = _input
 
     # Check for out of hours run
     clear_screen()
-    print( "Do you only want to run jobs out of normal work hours?\n" \
-        "(Monday to Friday 9am - 5pm)?\n")
-    input = str(raw_input('Default = ' + out_of_hours_string + ' :\n'))
-    if (len(input) != 0): out_of_hours_string = input
+    print("Do you only want to run jobs out of normal work hours?\n" \
+          "(Monday to Friday 9am - 5pm)?\n")
+    print('Default = ' + out_of_hours_string + ' :\n')
+    _input = input()
+    if len(_input) != 0:
+        out_of_hours_string = _input
 
-    # Set the walltime for the run   
+    # Set the walltime for the run
     clear_screen()
-    print( "How long does it take to run a month (HH:MM:SS)?\n",
-        "Be generous! if the time is too short your\n"
-        "job will get deleted (Max = 48 hours)\n")
-    input = str(raw_input( 'DEFAULT = ' + wall_time + ' :\n'))
-    if (len(input) != 0): wall_time = input
+    print("How long does it take to run a month (HH:MM:SS)?\n",
+          "Be generous! if the time is too short your\n"
+          "job will get deleted (Max = 48 hours)\n")
+    print('DEFAULT = ' + wall_time + ' :\n')
+    _input = input()
+    if len(_input) != 0:
+        wall_time = _input
 
-    # Set the memory requirements for the run 
+    # Set the memory requirements for the run
     clear_screen()
-    print( "How much memory does your run need?\n"
-        "Lower amounts may increase priority.\n"
-        "Example 4gb, 200mb, 200000kb.\n" )
-    input = str(raw_input( 'DEFAULT = ' + memory_need + ' :\n'))
-    if (len(input) != 0): memory_need = input
+    print("How much memory does your run need?\n"
+          "Lower amounts may increase priority.\n"
+          "Example 4gb, 200mb, 200000kb.\n")
+    print('DEFAULT = ' + memory_need + ' :\n')
+    _input = input()
+    if len(_input) != 0:
+        memory_need = _input
 
     # Run script check
     clear_screen()
-    print( "Do you want to run the script now?\n")
-    input = str(raw_input( 'DEFAULT = ' + run_script_string + ' :\n'))
-    if (len(input) != 0): run_script_string = input
+    print("Do you want to run the script now?\n")
+    print('DEFAULT = ' + run_script_string + ' :\n')
+    _input = input()
+    if len(_input) != 0:
+        run_script_string = _input
 
-    clear_screen()   
+    clear_screen()
 
     # Update input variables
     inputs.job_name = job_name
@@ -438,18 +475,6 @@ def get_variables_from_cli(inputs):
     inputs.step = step.lower()
     return inputs
 
-def test_get_variables_from_cli():
-    """
-    Test that varialbes passed from the cli make it into the class.
-    """
-    #########
-    ## To-do
-    ########
-    #
-    # Write this test
-    #
-    ##########
-    return
 
 
 def run_the_script(run_script):
@@ -496,7 +521,7 @@ def list_of_times_to_run(start_time, end_time, inputs):
     # Get steps from inputs
     step = inputs.step
 
-    def datetime_2_YYYYMMDD(_my_datetime):
+    def datetime_2_yyyymmdd(_my_datetime):
         """
         Get the geoschem YYYYMMDD from a datetime object.
         """
@@ -514,10 +539,10 @@ def list_of_times_to_run(start_time, end_time, inputs):
 
     _timestamp = (start_datetime)
 
-    times = [datetime_2_YYYYMMDD(_timestamp)]
+    times = [datetime_2_yyyymmdd(_timestamp)]
     while _timestamp < end_datetime:
         _timestamp = _timestamp + time_delta
-        times.append(datetime_2_YYYYMMDD(_timestamp))
+        times.append(datetime_2_yyyymmdd(_timestamp))
 
     return times
 
@@ -551,14 +576,7 @@ def update_output_line(line, end_time):
 
     return newline
 
-
-def is_current_year_a_leap_year():
-    """ Check if current year is a leap year """
-    # TODO
-    return
-
-
-def create_the_input_files(times, debug=False):
+def create_the_input_files(times):
     """
     Create the input files for the run
     INPUT:
@@ -581,10 +599,10 @@ def create_the_input_files(times, debug=False):
 
     for time in times:
         end_time = time
-        if (time == times[0]):
+        if time == times[0]:
             start_time = time
             continue
-      
+
         time_input_file_location = os.path.join(_dir, (start_time+".input.geos"))
 
         new_input_geos = create_new_input_file(start_time, end_time, input_geos)
@@ -592,30 +610,6 @@ def create_the_input_files(times, debug=False):
         with open(time_input_file_location, 'w') as output_file:
             output_file.writelines(new_input_geos)
 
-#      
-#
-#        for line in input_geos:
-#
-#            if line.startswith("Start YYYYMMDD, HHMMSS  :"):
-#                newline = line[:26] + str(start_time) + line[34:] 
-#                output_file.write(newline)
-#                # Confirm the run starts on the first of the time
-#            elif line.startswith("End   YYYYMMDD, HHMMSS  :"):
-#                newline = line[:26] + str(end_time) + line[34:] 
-#                output_file.write(newline)
-#            # Force CSPEC on
-#            elif line.startswith("Read and save CSPEC_FULL:"):
-#                newline = line[:26] + 'T \n' 
-#                output_file.write(newline)
-#            # Make sure write at end on a 3
-#            elif line.startswith("Schedule output for"):
-#                newline = update_output_line( line, end_time )
-#                output_file.write(newline)
-#            else: 
-#                newline = line
-#                output_file.write(newline)
-#        output_file.close()
-#        input_geos.close()
         start_time = time
     return
 
@@ -652,7 +646,7 @@ def create_new_input_file(start_time, end_time, input_file):
 
 
 
-def create_the_queue_files(times, inputs, debug=DEBUG ):
+def create_the_queue_files(times, inputs):
     """ """
     # Create local variables
     queue_name = inputs.queue_name
@@ -665,10 +659,10 @@ def create_the_queue_files(times, inputs, debug=DEBUG ):
     email_setting = inputs.email_setting
     memory_need   = inputs.memory_need
 
-    # Create folder queue files 
+    # Create folder queue files
     _dir = os.path.dirname("queue_files/")
     if not os.path.exists(_dir):
-        os.makedirs(_dir)     
+        os.makedirs(_dir)
 
     # Modify the input files to have the correct start months
     for time in times:
@@ -699,7 +693,7 @@ def create_the_queue_files(times, inputs, debug=DEBUG ):
             out_of_hours_string = "\n"
 
         # Set up email if its the final run and email = True
-        # TODO - add an option to always send email when run finishes? 
+        # TODO - add an option to always send email when run finishes?
         # or if run finishes without a success code?
         if email and (time == times[-1]):
                 email_string = (
@@ -712,7 +706,7 @@ def create_the_queue_files(times, inputs, debug=DEBUG ):
         else:
             email_string = "\n"
 
-        # Setup queue file string     
+        # Setup queue file string
         queue_file_string = (
 """#!/bin/bash
 #PBS -j oe
@@ -836,7 +830,7 @@ qsub queue_files/{month}.pbs
 
 
 if __name__ == '__main__':
-    main(debug=DEBUG)
+    main()
 
 
 
@@ -1065,4 +1059,17 @@ def test_update_output_line():
     for test in tests:
         assert test["lineout"] == update_output_line(test["linein"], test["end_time"])
 
+    return
+
+def test_get_variables_from_cli():
+    """
+    Test that varialbes passed from the cli make it into the class.
+    """
+    #########
+    ## To-do
+    ########
+    #
+    # Write this test
+    #
+    ##########
     return
