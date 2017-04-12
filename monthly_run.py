@@ -168,6 +168,9 @@ def main():
     # Make a backup of the input.geos file.
     backup_the_input_file()
 
+    # make the origional restart file a usable name.
+    create_origional_restart_file(start_date)
+
     # Create the individual time input files.
     create_the_input_files(times)
 
@@ -179,6 +182,31 @@ def main():
 
     # Send the script to the queue if wanted.
     run_the_script(inputs.run_script)
+
+    return
+
+def create_origional_restart_file(start_date):
+    """
+    Symbolicaly link the origional restart file to the standard format with
+    the start date. Do nothing if the start date file already exists.
+    """
+
+    # Get the origional restart file location from input.geos
+    with open("input.geos", "r") as input_file:
+        input_geos = input_file.readlines()
+    for line in input_geos:
+        # Use created restart files for V11+
+        if line.startswith("Input restart file      :"):
+            restart_file_name = line[26:].lstrip().rstrip()
+
+    new_restart_file_name = "GEOSChem_rst.{start_date}0000.nc".format(
+        start_date=start_date)
+
+    # Sym link the file if it doesnt already exist.
+    if not os.path.exists(new_restart_file_name):
+        os.system("ln -s {origional} {new}".format(
+            origional=restart_file_name,
+            new=new_restart_file_name))
 
     return
 
@@ -636,6 +664,9 @@ def create_new_input_file(start_time, end_time, input_file):
         # Force CSPEC on
         elif line.startswith("Read and save CSPEC_FULL:"):
             newline = line[:26] + 'T\n'
+        # Use created restart files for V11+
+        elif line.startswith("Input restart file      :"):
+            newline = line[:26] + "GEOSChem_rst.YYYYMMDD0000.nc\n"
         # Make sure write at end on a 3
         elif line.startswith("Schedule output for"):
             newline = update_output_line(line, end_time)
